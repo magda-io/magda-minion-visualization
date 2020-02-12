@@ -1,6 +1,5 @@
-import minion from "magda-minion-framework/src/index";
+import minion, { commonYargs } from "@magda/minion-sdk";
 import onRecordFound from "./onRecordFound";
-import commonYargs from "magda-minion-framework/src/commonYargs";
 const ID = "minion-visualization";
 const argv = commonYargs(6311, "http://localhost:6311");
 

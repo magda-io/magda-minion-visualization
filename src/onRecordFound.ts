@@ -1,13 +1,13 @@
-import request from "magda-typescript-common/src/request";
+import { request, retryBackoff } from "@magda/utils";
 import URI from "urijs";
 import Papa from "papaparse";
 import moment from "moment";
 import { Readable } from "stream";
 
-import Registry from "magda-typescript-common/src/registry/AuthorizedRegistryClient";
-import retryBackoff from "magda-typescript-common/src/retryBackoff";
-
-import { Record } from "magda-typescript-common/src/generated/registry/api";
+import {
+    AuthorizedRegistryClient as Registry,
+    Record
+} from "@magda/minion-sdk";
 
 const timeFormats = [
     moment.ISO_8601,
