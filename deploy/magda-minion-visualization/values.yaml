@@ -1,6 +1,8 @@
 global:
   image: {}
   rollingUpdate: {}
+  minions:
+    image: {}
 
 image: 
   name: "magda-minion-visualization"
@@ -13,7 +15,7 @@ defaultImage:
   repository: docker.io/data61
   tag: 0.0.57-0
   pullPolicy: IfNotPresent
-  # imagePullSecret: ""
+  imagePullSecret: false
 
 defaultAdminUserId: "00000000-0000-4000-8000-000000000000"
 
