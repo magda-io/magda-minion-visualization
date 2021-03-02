@@ -35,7 +35,7 @@
     "moment": "^2.19.1",
     "papaparse": "^4.3.6",
     "read-pkg-up": "^3.0.0",
-    "urijs": "^1.18.7"
+    "urijs": "^1.19.6"
   },
   "config": {
     "registryUrl": "http://localhost:6101/v0",
