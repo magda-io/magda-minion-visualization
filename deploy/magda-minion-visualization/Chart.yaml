@@ -1,8 +1,13 @@
 apiVersion: v2
 name: magda-minion-visualization
 description: A Helm chart for Magda Visualization Minion
-version: "0.0.57-0"
+version: "1.0.0"
 kubeVersion: ">= 1.14.0-0"
 home: "https://github.com/magda-io/magda-minion-visualization"
-sources: ["https://github.com/magda-io/magda-minion-visualization"]
-
+sources: [ "https://github.com/magda-io/magda-minion-visualization" ]
+annotations:
+  magdaModuleType: "minio"
+dependencies:
+  - name: magda-common
+    version: "1.0.0-alpha.4"
+    repository: "https://charts.magda.io"

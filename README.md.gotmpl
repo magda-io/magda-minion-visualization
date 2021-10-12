@@ -30,26 +30,10 @@ https://hub.docker.com/r/data61/magda-minion-visualization/
 
 Development releases (per commit) are also available from [GitHub Registry](https://github.com/magda-io/magda-minion-visualization/packages) and accessible with access token.
 
-## Requirements
+{{ template "chart.maintainersSection" . }}
 
-Kubernetes: `>= 1.14.0-0`
+{{ template "chart.requirementsSection" . }}
 
-| Repository              | Name         | Version       |
-| ----------------------- | ------------ | ------------- |
-| https://charts.magda.io | magda-common | 1.0.0-alpha.4 |
+{{ template "chart.valuesHeader" . }}
 
-## Values
-
-| Key                          | Type   | Default                                  | Description |
-| ---------------------------- | ------ | ---------------------------------------- | ----------- |
-| defaultAdminUserId           | string | `"00000000-0000-4000-8000-000000000000"` |             |
-| defaultImage.imagePullSecret | bool   | `false`                                  |             |
-| defaultImage.pullPolicy      | string | `"IfNotPresent"`                         |             |
-| defaultImage.repository      | string | `"docker.io/data61"`                     |             |
-| global.image                 | object | `{}`                                     |             |
-| global.minions.image         | object | `{}`                                     |             |
-| global.rollingUpdate         | object | `{}`                                     |             |
-| image.name                   | string | `"magda-minion-visualization"`           |             |
-| resources.limits.cpu         | string | `"100m"`                                 |             |
-| resources.requests.cpu       | string | `"50m"`                                  |             |
-| resources.requests.memory    | string | `"200Mi"`                                |             |
+{{ template "chart.valuesTable" . }}

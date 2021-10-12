@@ -1,7 +1,7 @@
 {
   "name": "@magda/minion-visualization",
   "description": "MAGDA visualization Minion",
-  "version": "0.0.57-0",
+  "version": "1.0.0",
   "scripts": {
     "prebuild": "rimraf dist tsconfig.tsbuildinfo",
     "build": "yarn run compile",
@@ -13,25 +13,30 @@
     "docker-build-prod": "create-docker-context-for-node-component --build --push --tag auto",
     "retag-and-push": "retag-and-push",
     "test": "echo \"Test cases for visualization minion are yet to be added.\"",
-    "helm-lint": "helm lint deploy/magda-minion-visualization -f deploy/test-deploy.yaml"
+    "helm-lint": "helm lint deploy/magda-minion-visualization -f deploy/test-deploy.yaml",
+    "helm-docs": "helm-docs -t ./README.md.gotmpl -o ../../README.md",
+    "update-all-charts": "helm dep up ./deploy/magda-minion-visualization",
+    "add-all-chart-version-changes": "git ls-files -m | grep Chart.yaml | xargs git add && git ls-files -m | grep Chart.lock | xargs git add",
+    "add-all-helm-docs-changes": "yarn helm-docs && git ls-files -m | grep -i readme.md | xargs git add",
+    "version": "yarn update-helm-chart-version && yarn update-all-charts && yarn add-all-chart-version-changes && yarn add-all-helm-docs-changes"
   },
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
-    "@magda/scripts": "^0.0.57-0",
+    "@magda/ci-utils": "^1.0.2",
+    "@magda/docker-utils": "^0.0.60",
     "@types/papaparse": "^4.1.31",
     "@types/read-pkg-up": "^3.0.1",
-    "@types/urijs": "^1.15.31",
     "husky": "^3.1.0",
     "prettier": "^1.19.1",
     "pretty-quick": "^2.0.1",
     "rimraf": "^3.0.0",
-    "typescript": "^3.7.2"
+    "typescript": "^3.9.5"
   },
   "dependencies": {
-    "@magda/minion-sdk": "^0.0.57-0",
-    "@magda/registry-aspects": "^0.0.57-0",
-    "@magda/utils": "^0.0.57-0",
+    "@magda/minion-sdk": "^0.0.60",
+    "@magda/registry-aspects": "^0.0.60",
+    "@magda/utils": "^0.0.60",
     "moment": "^2.19.1",
     "papaparse": "^4.3.6",
     "read-pkg-up": "^3.0.0",
