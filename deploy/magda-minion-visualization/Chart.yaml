@@ -6,7 +6,7 @@ kubeVersion: ">= 1.14.0-0"
 home: "https://github.com/magda-io/magda-minion-visualization"
 sources: [ "https://github.com/magda-io/magda-minion-visualization" ]
 annotations:
-  magdaModuleType: "minio"
+  magdaModuleType: "minion"
 dependencies:
   - name: magda-common
     version: "1.0.0-alpha.4"
