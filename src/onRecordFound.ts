@@ -10,7 +10,7 @@ import {
 import type { RequestInfo, RequestInit } from "node-fetch";
 import _importDynamic from "./_importDynamic";
 
-async function fetch(url: RequestInfo, init?: RequestInit) {
+export async function fetch(url: RequestInfo, init?: RequestInit) {
     const { default: fetch } = await _importDynamic<
         typeof import("node-fetch")
     >("node-fetch");
@@ -31,6 +31,7 @@ class VisualizationInfoDeterminedError extends Error {
 
     constructor(result: VisualizationInfo | undefined) {
         super();
+        this.result = result;
     }
 }
 
@@ -69,6 +70,12 @@ async function getVisualizationInfo(
         );
     }
 
+    return await getVisualizationInfoFromStream(res.body);
+}
+
+export async function getVisualizationInfoFromStream(
+    csvStream: NodeJS.ReadableStream
+): Promise<VisualizationInfo | undefined> {
     const fields: { [key: string]: any[] } = {};
 
     const parser = parse({
@@ -126,7 +133,7 @@ async function getVisualizationInfo(
     return new Promise((resolve, reject) => {
         let ifResolved = false;
 
-        res.body
+        csvStream
             .pipe(parser)
             .pipe(new NullStream({ objectMode: true }))
             .on("close", () => {
@@ -137,8 +144,15 @@ async function getVisualizationInfo(
             });
 
         parser.on("error", (err) => {
+            if (ifResolved) {
+                console.error(
+                    "determineVisualizationInfo promise resolve unexpectedly early: ",
+                    err
+                );
+                return;
+            }
+            ifResolved = true;
             if (err instanceof VisualizationInfoDeterminedError) {
-                ifResolved = true;
                 resolve(err.result);
             } else {
                 reject(err);
@@ -167,7 +181,7 @@ export default function onRecordFound(
                     ) => {
                         if (!visualizationInfo) {
                             throw new Error(
-                                `Couldn't determine VisualizationInfo for ${downloadURL}. No visualizationInfo data has been produced.`
+                                `Couldn't determine VisualizationInfo: No visualizationInfo data has been produced.`
                             );
                         }
                         await registry.putRecordAspect(
