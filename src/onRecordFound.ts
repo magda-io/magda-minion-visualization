@@ -1,13 +1,31 @@
-import { request, retryBackoff } from "@magda/utils";
+import fetch from "node-fetch";
+import { parse, CastingFunction } from "csv-parse";
 import URI from "urijs";
-import Papa from "papaparse";
 import moment from "moment";
-import { Readable } from "stream";
+import NullStream from "./NullStream";
+import isDate from "lodash/isDate";
 
 import {
     AuthorizedRegistryClient as Registry,
     Record
 } from "@magda/minion-sdk";
+
+const MAX_CHECK_ROW_NUM = 50;
+
+/**
+ * A error that will be thrown once we reach a conclusion.
+ * Used to interrupt the stream processing.
+ *
+ * @class VisualizationInfoDeterminedError
+ * @extends {Error}
+ */
+class VisualizationInfoDeterminedError extends Error {
+    public result: VisualizationInfo | undefined;
+
+    constructor(result: VisualizationInfo | undefined) {
+        super();
+    }
+}
 
 const timeFormats = [
     moment.ISO_8601,
@@ -17,6 +35,109 @@ const timeFormats = [
     "D-M-YY",
     "YYYY-[Q]Q"
 ];
+
+const fieldCastFunc: CastingFunction = (value, context) => {
+    if (context.header) {
+        // not touch header row
+        return value;
+    }
+    let v: any = moment(value, timeFormats, true);
+    if (v.isValid()) {
+        return v.toDate();
+    }
+    v = parseFloat(value);
+    if (typeof v === "number" && isFinite(v)) {
+        return v;
+    }
+    return value;
+};
+
+async function getVisualizationInfo(
+    downloadURL: string
+): Promise<VisualizationInfo | undefined> {
+    const res = await fetch(downloadURL);
+    if (!res.ok) {
+        throw new Error(
+            `Downloading ${downloadURL} failed. Status Code: ${res.status} ${res.statusText}`
+        );
+    }
+
+    const fields: { [key: string]: any[] } = {};
+
+    const parser = parse({
+        delimiter: ",",
+        columns: true,
+        bom: true,
+        skip_empty_lines: true,
+        skip_records_with_empty_values: true,
+        relax_column_count: true,
+        trim: true,
+        cast: fieldCastFunc,
+        on_record: (record, context) => {
+            const keys = Object.keys(record);
+            for (let key of keys) {
+                if (!fields[key]) {
+                    fields[key] = [];
+                }
+                fields[key].push(record[key]);
+            }
+            if (context.records >= MAX_CHECK_ROW_NUM) {
+                throw new VisualizationInfoDeterminedError(
+                    determineVisualizationInfo()
+                );
+            }
+        }
+    });
+
+    function determineVisualizationInfo() {
+        const keys = Object.keys(fields);
+        const fieldInfo = {} as any;
+        for (const key of keys) {
+            fieldInfo[key] = {
+                numeric: false,
+                time: false
+            };
+            if (fields[key].every(item => isDate(item))) {
+                fieldInfo[key]["time"] = true;
+            } else if (fields[key].every(item => typeof item === "number")) {
+                fieldInfo[key]["numeric"] = true;
+            }
+        }
+        const timeseries =
+            keys.some(key => fieldInfo[key].time) &&
+            keys.some(key => fieldInfo[key].numeric);
+
+        return {
+            format: "CSV",
+            wellFormed: true,
+            fields: fieldInfo,
+            // At least one time and one numeric column
+            timeseries
+        };
+    }
+
+    return new Promise((resolve, reject) => {
+        const csvStream = res.body
+            .pipe(parser)
+            .pipe(new NullStream({ objectMode: true }));
+        let ifResolved = false;
+
+        csvStream.on("error", err => {
+            if (err instanceof VisualizationInfoDeterminedError) {
+                ifResolved = true;
+                resolve(err.result);
+            } else {
+                reject(err);
+            }
+        });
+        csvStream.on("close", () => {
+            if (!ifResolved) {
+                ifResolved = true;
+                resolve(determineVisualizationInfo());
+            }
+        });
+    });
+}
 
 export default function onRecordFound(
     record: Record,
@@ -31,46 +152,28 @@ export default function onRecordFound(
             parsedURL.protocol() === "http" ||
             parsedURL.protocol() === "https"
         ) {
-            const operation: () => Promise<VisualizationInfo> = () =>
-                new Promise((resolve, reject) => {
-                    request
-                        .get(downloadURL)
-                        .on("error", reject)
-                        .on("response", response => {
-                            if (
-                                response.statusCode >= 200 &&
-                                response.statusCode <= 299
-                            ) {
-                                resolve(processCsv(record, response));
-                            } else {
-                                reject(
-                                    new BadHttpResponseError(
-                                        response.statusMessage,
-                                        response.statusCode
-                                    )
-                                );
-                            }
-                        });
-                });
-
-            return retryBackoff(operation, 1, 5, (err, retries) => {
-                console.log(
-                    `Downloading ${downloadURL} failed: ${err.errorDetails ||
-                        err.httpStatusCode ||
-                        err} (${retries} retries remaining)`
-                );
-            })
-                .then(async (visualizationInfo: VisualizationInfo) => {
-                    await registry.putRecordAspect(
-                        record.id,
-                        "visualization-info",
-                        visualizationInfo,
-                        theTenantId
-                    );
-                })
+            return getVisualizationInfo(downloadURL)
+                .then(
+                    async (
+                        visualizationInfo: VisualizationInfo | undefined
+                    ) => {
+                        if (!visualizationInfo) {
+                            throw new Error(
+                                `Couldn't determine VisualizationInfo for ${downloadURL}. No visualizationInfo data has been produced.`
+                            );
+                        }
+                        await registry.putRecordAspect(
+                            record.id,
+                            "visualization-info",
+                            visualizationInfo,
+                            true,
+                            theTenantId
+                        );
+                    }
+                )
                 .catch(err => {
                     console.log(
-                        `Failed to download ${downloadURL}: ${err.errorDetails ||
+                        `Failed to generate visualizationInfo for ${downloadURL}: ${err.errorDetails ||
                             err.httpStatusCode ||
                             err}`
                     );
@@ -82,122 +185,11 @@ export default function onRecordFound(
     return undefined;
 }
 
-function processCsv(
-    record: Record,
-    stream: Readable
-): Promise<VisualizationInfo> {
-    // Currently only supports CSV:
-    const fields: { [key: string]: Field } = {};
-    let errorAbort: Boolean = false;
-
-    return new Promise((resolve, reject) => {
-        // @types/papaparse types doesn't recognise Node's stream.Readable (they want a browser ReadableStream)
-        Papa.parse(<any>stream, {
-            beforeFirstChunk(chunk) {
-                // Test for binary data
-                const badChars = chunk.match(/[\x00-\x08\x0E-\x1F]/g);
-                if (badChars) {
-                    // Flag as binary, then output an error message with up to the first 20 binary characters detected
-                    errorAbort = true;
-                    const badCharsStringified = badChars
-                        .slice(0, 20)
-                        .map(s => JSON.stringify(s))
-                        .join(", "); // stringify to escape (and hence convert to printable representation) binary characters
-                    console.log(
-                        `Distribution "${record.id}" points to a binary file (binary characters detected: ${badCharsStringified})`
-                    );
-                    resolve({
-                        format: "binary"
-                    });
-                }
-            },
-            complete() {
-                if (!errorAbort) {
-                    resolve({
-                        format: "CSV",
-                        wellFormed: true,
-                        fields,
-                        // At least one time and one numeric column
-                        timeseries:
-                            Object.keys(fields).some(key => fields[key].time) &&
-                            Object.keys(fields).some(key => fields[key].numeric)
-                    });
-                }
-            },
-            dynamicTyping: true, // Replace this with proper number validation
-            error(err) {
-                errorAbort = true;
-                console.log(err);
-                resolve({
-                    format: "CSV",
-                    wellFormed: false
-                });
-            },
-            header: true,
-            skipEmptyLines: true,
-            step(results, parser) {
-                if (errorAbort) {
-                    parser.abort();
-                    return;
-                }
-                results.meta.fields.forEach(field => {
-                    const values = results.data.map(row => row[field]);
-                    if (!fields[field]) {
-                        // First row. Set all attributes to true and modify that when a row doesn't validate
-                        fields[field] = {
-                            numeric: true,
-                            time: true
-                        };
-                    }
-                    if (
-                        fields[field].numeric &&
-                        !values.every(val => typeof val === "number")
-                    ) {
-                        // At least one row fails number validation. Not a great way to validate numbers
-                        fields[field].numeric = false;
-                    }
-                    if (
-                        fields[field].time &&
-                        !values.every(time =>
-                            moment(time, timeFormats, true).isValid()
-                        )
-                    ) {
-                        fields[field].time = false;
-                    }
-                });
-                if (
-                    Object.keys(fields)
-                        .map(field => fields[field])
-                        .every(
-                            fieldObj =>
-                                fieldObj.time === false &&
-                                fieldObj.numeric === false
-                        )
-                ) {
-                    // Every attribute we're checking is already false, so short circuit and stop
-                    parser.abort();
-                }
-            }
-        });
-    });
-}
-
 interface VisualizationInfo {
     format: string;
     wellFormed?: boolean;
     fields?: { [key: string]: Field };
     timeseries?: boolean;
-}
-
-class BadHttpResponseError extends Error {
-    public httpStatusCode: number;
-
-    constructor(message?: string, httpStatusCode?: number) {
-        super(message);
-        this.message = message;
-        this.httpStatusCode = httpStatusCode;
-        this.stack = new Error().stack;
-    }
 }
 
 interface Field {
