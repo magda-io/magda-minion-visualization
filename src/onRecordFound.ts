@@ -1,14 +1,21 @@
-import fetch from "node-fetch";
 import { parse, CastingFunction } from "csv-parse";
 import URI from "urijs";
 import moment from "moment";
 import NullStream from "./NullStream";
 import isDate from "lodash/isDate";
-
 import {
     AuthorizedRegistryClient as Registry,
     Record
 } from "@magda/minion-sdk";
+import type { RequestInfo, RequestInit } from "node-fetch";
+import _importDynamic from "./_importDynamic";
+
+async function fetch(url: RequestInfo, init?: RequestInit) {
+    const { default: fetch } = await _importDynamic<
+        typeof import("node-fetch")
+    >("node-fetch");
+    return fetch(url, init);
+}
 
 const MAX_CHECK_ROW_NUM = 50;
 
@@ -97,15 +104,15 @@ async function getVisualizationInfo(
                 numeric: false,
                 time: false
             };
-            if (fields[key].every(item => isDate(item))) {
+            if (fields[key].every((item) => isDate(item))) {
                 fieldInfo[key]["time"] = true;
-            } else if (fields[key].every(item => typeof item === "number")) {
+            } else if (fields[key].every((item) => typeof item === "number")) {
                 fieldInfo[key]["numeric"] = true;
             }
         }
         const timeseries =
-            keys.some(key => fieldInfo[key].time) &&
-            keys.some(key => fieldInfo[key].numeric);
+            keys.some((key) => fieldInfo[key].time) &&
+            keys.some((key) => fieldInfo[key].numeric);
 
         return {
             format: "CSV",
@@ -117,23 +124,24 @@ async function getVisualizationInfo(
     }
 
     return new Promise((resolve, reject) => {
-        const csvStream = res.body
-            .pipe(parser)
-            .pipe(new NullStream({ objectMode: true }));
         let ifResolved = false;
 
-        csvStream.on("error", err => {
+        res.body
+            .pipe(parser)
+            .pipe(new NullStream({ objectMode: true }))
+            .on("close", () => {
+                if (!ifResolved) {
+                    ifResolved = true;
+                    resolve(determineVisualizationInfo());
+                }
+            });
+
+        parser.on("error", (err) => {
             if (err instanceof VisualizationInfoDeterminedError) {
                 ifResolved = true;
                 resolve(err.result);
             } else {
                 reject(err);
-            }
-        });
-        csvStream.on("close", () => {
-            if (!ifResolved) {
-                ifResolved = true;
-                resolve(determineVisualizationInfo());
             }
         });
     });
@@ -171,11 +179,11 @@ export default function onRecordFound(
                         );
                     }
                 )
-                .catch(err => {
+                .catch((err) => {
                     console.log(
-                        `Failed to generate visualizationInfo for ${downloadURL}: ${err.errorDetails ||
-                            err.httpStatusCode ||
-                            err}`
+                        `Failed to generate visualizationInfo for ${downloadURL}: ${
+                            err.errorDetails || err.httpStatusCode || err
+                        }`
                     );
                 });
         } else {
