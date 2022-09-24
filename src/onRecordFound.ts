@@ -7,8 +7,15 @@ import {
     AuthorizedRegistryClient as Registry,
     Record
 } from "@magda/minion-sdk";
-import type { RequestInfo, RequestInit } from "node-fetch";
+import type { RequestInfo, RequestInit, Response } from "node-fetch";
 import _importDynamic from "./_importDynamic";
+import fse from "fs-extra";
+import path from "path";
+import AbortController from "abort-controller";
+
+const pkgPromise = fse.readJSON(path.resolve(__dirname, "../package.json"), {
+    encoding: "utf-8"
+});
 
 export async function fetch(url: RequestInfo, init?: RequestInit) {
     const { default: fetch } = await _importDynamic<
@@ -18,6 +25,8 @@ export async function fetch(url: RequestInfo, init?: RequestInit) {
 }
 
 const MAX_CHECK_ROW_NUM = 50;
+// in seconds
+const CONNECTION_TIMEOUT = 120;
 
 /**
  * A error that will be thrown once we reach a conclusion.
@@ -60,21 +69,37 @@ const fieldCastFunc: CastingFunction = (value, context) => {
     return value;
 };
 
-async function getVisualizationInfo(
+export async function getVisualizationInfo(
     downloadURL: string
 ): Promise<VisualizationInfo | undefined> {
-    const res = await fetch(downloadURL);
-    if (!res.ok) {
-        throw new Error(
-            `Downloading ${downloadURL} failed. Status Code: ${res.status} ${res.statusText}`
-        );
-    }
+    const pkg = await pkgPromise;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+        controller.abort();
+    }, CONNECTION_TIMEOUT * 1000);
 
-    return await getVisualizationInfoFromStream(res.body);
+    let res: Response;
+    try {
+        res = await fetch(downloadURL, {
+            redirect: "follow",
+            headers: {
+                "User-Agent": `${pkg.name}/${pkg.version}`
+            },
+            signal: controller.signal
+        });
+    } catch (e) {
+        throw e;
+    } finally {
+        clearTimeout(timeout);
+    }
+    return getVisualizationInfoFromStream(res.body, () => {
+        controller.abort();
+    });
 }
 
 export async function getVisualizationInfoFromStream(
-    csvStream: NodeJS.ReadableStream
+    csvStream: NodeJS.ReadableStream,
+    onAbort?: () => void
 ): Promise<VisualizationInfo | undefined> {
     const fields: { [key: string]: any[] } = {};
 
@@ -96,6 +121,9 @@ export async function getVisualizationInfoFromStream(
                 fields[key].push(record[key]);
             }
             if (context.records >= MAX_CHECK_ROW_NUM) {
+                if (typeof onAbort === "function") {
+                    onAbort();
+                }
                 throw new VisualizationInfoDeterminedError(
                     determineVisualizationInfo()
                 );
@@ -195,7 +223,9 @@ export default function onRecordFound(
                 )
                 .catch((err) => {
                     console.log(
-                        `Failed to generate visualizationInfo for ${downloadURL}: ${
+                        `Failed to generate visualizationInfo for record ${
+                            record.id
+                        }, URL: ${downloadURL}.\nReason: ${
                             err.errorDetails || err.httpStatusCode || err
                         }`
                     );

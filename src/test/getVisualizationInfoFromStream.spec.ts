@@ -25,4 +25,15 @@ describe("Test getVisualizationInfoFromStream", () => {
             restoration_date: { numeric: false, time: true }
         });
     });
+
+    it("Should throw error for non-csv file content", async () => {
+        // --- https://www.directory.gov.au/scripts/viewfile.php?file=index&report=department&type=csv
+        const fileStream = fs.createReadStream(
+            path.resolve(__dirname, "./test-dummy-file.html")
+        );
+        const result = await getVisualizationInfoFromStream(fileStream).catch(
+            (e) => e
+        );
+        expect(result).to.be.an.instanceof(Error);
+    });
 });
