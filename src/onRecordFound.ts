@@ -12,6 +12,9 @@ import _importDynamic from "./_importDynamic";
 import fse from "fs-extra";
 import path from "path";
 import AbortController from "abort-controller";
+import DeferredStream from "./DeferredStream";
+
+class SkipError extends Error {}
 
 const pkgPromise = fse.readJSON(path.resolve(__dirname, "../package.json"), {
     encoding: "utf-8"
@@ -162,7 +165,12 @@ export async function getVisualizationInfoFromStream(
         let ifResolved = false;
 
         csvStream
+            .pipe(new DeferredStream())
             .pipe(parser)
+            .pipe(new DeferredStream({
+                readableObjectMode: true,
+                writableObjectMode: true
+            }))
             .pipe(new NullStream({ objectMode: true }))
             .on("close", () => {
                 if (!ifResolved) {
@@ -202,6 +210,9 @@ export default function onRecordFound(
             parsedURL.protocol() === "http" ||
             parsedURL.protocol() === "https"
         ) {
+            console.log(
+                `Processing visualizationInfo for record ${record.id}, URL: ${downloadURL}...`
+            );
             return getVisualizationInfo(downloadURL)
                 .then(
                     async (
@@ -212,13 +223,7 @@ export default function onRecordFound(
                                 `Couldn't determine VisualizationInfo: No visualizationInfo data has been produced.`
                             );
                         }
-                        await registry.putRecordAspect(
-                            record.id,
-                            "visualization-info",
-                            visualizationInfo,
-                            true,
-                            theTenantId
-                        );
+                        return visualizationInfo;
                     }
                 )
                 .catch((err) => {
@@ -229,6 +234,22 @@ export default function onRecordFound(
                             err.errorDetails || err.httpStatusCode || err
                         }`
                     );
+                    throw new SkipError();
+                })
+                .then(async (visualizationInfo: VisualizationInfo) => {
+                    await registry.putRecordAspect(
+                        record.id,
+                        "visualization-info",
+                        visualizationInfo,
+                        true,
+                        theTenantId
+                    );
+                })
+                .catch((err) => {
+                    if (err instanceof SkipError) {
+                        return;
+                    }
+                    throw err;
                 });
         } else {
             console.log(`Unsupported URL: ${downloadURL}`);
