@@ -5,8 +5,7 @@ const argv = commonYargs(6311, "http://localhost:6311");
 
 const aspectDefinition = {
     id: "visualization-info",
-    name:
-        "Information to power smart visualisations for distributions in the front-end",
+    name: "Information to power smart visualisations for distributions in the front-end",
     jsonSchema: require("@magda/registry-aspects/visualization-info.schema.json")
 };
 
@@ -17,7 +16,8 @@ minion({
     id: ID,
     onRecordFound,
     optionalAspects: [],
-    writeAspectDefs: [aspectDefinition]
+    writeAspectDefs: [aspectDefinition],
+    dereference: false
 }).catch((e: Error) => {
     console.error("Error: " + e.message, e);
     process.exit(1);

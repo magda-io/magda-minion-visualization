@@ -7,11 +7,12 @@ global:
 image: 
   name: "magda-minion-visualization"
   # repository: 
+  # tag: 
   # pullPolicy: 
   # imagePullSecret: 
 
 defaultImage:
-  repository: docker.io/data61
+  repository: ghcr.io/magda-io
   pullPolicy: IfNotPresent
   imagePullSecret: false
 
