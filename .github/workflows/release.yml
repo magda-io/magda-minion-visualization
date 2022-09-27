@@ -41,47 +41,22 @@ jobs:
           REPO_OWNER=`echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]'`
           yarn docker-build-prod --repository=ghcr.io/${REPO_OWNER} --name=${REPO_NAME} --version=${GITHUB_SHA} --platform=linux/amd64,linux/arm64
 
-      - name: Login to Docker Hub
-        env:
-          DH_TOKEN: ${{ secrets.DOCKER_HUB_PASSWORD }}
-        run: docker login -u magdabot -p ${DH_TOKEN}
-
       - name: Re-tag & Push Docker Images
         run: |
           REPO_OWNER=`echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]'`
           PACKAGE_JSON_VERSION=$(jq -r ".version" ./${REPO_NAME}/package.json)
           chmod +r $HOME/.docker/config.json
-          # Re-push to docker hub
-          docker container run --rm --net host \
-            -v regctl-conf:/home/appuser/.regctl/ \
-            -v $HOME/.docker/config.json:/home/appuser/.docker/config.json \
-            regclient/regctl:v0.3.9 image copy ghcr.io/${REPO_OWNER}/${REPO_NAME}:${GITHUB_SHA} docker.io/data61/${REPO_NAME}:${PACKAGE_JSON_VERSION}
           # Re-push to ghcr.io
           docker container run --rm --net host \
             -v regctl-conf:/home/appuser/.regctl/ \
             -v $HOME/.docker/config.json:/home/appuser/.docker/config.json \
             regclient/regctl:v0.3.9 image copy ghcr.io/${REPO_OWNER}/${REPO_NAME}:${GITHUB_SHA} ghcr.io/${REPO_OWNER}/${REPO_NAME}:${PACKAGE_JSON_VERSION}
 
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-      - name: Setup AWS CLi Tools
-        uses: chrislennon/action-aws-cli@v1.1
-
       - name: Release Helm Chart
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_ACCESS_TOKEN }}"
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
+          REPO_OWNER=`echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]'`
           cd deploy
-          mkdir -p sync_dir
-          mkdir -p index_dir
-          if ! aws s3 cp s3://magda-charts/index.yaml index_dir/index.yaml; then echo "failed to copy current repo index" && exit 1; fi
-          helm package -d sync_dir ${REPO_NAME}
-          helm repo index --merge "index_dir/index.yaml" sync_dir
-          mv -f sync_dir/index.yaml index_dir/index.yaml
-          aws s3 sync sync_dir s3://magda-charts/ --acl public-read
-          aws s3 cp index_dir/index.yaml s3://magda-charts/index.yaml --acl public-read
+          helm package ${REPO_NAME}
+          PKG_NAME=`ls *.tgz`
+          helm push ${PKG_NAME} oci://ghcr.io/${REPO_OWNER}/charts
+
