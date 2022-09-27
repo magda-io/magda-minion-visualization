@@ -5,3 +5,9 @@ version: "2.0.0"
 kubeVersion: ">= 1.14.0-0"
 home: "https://github.com/magda-io/magda-minion-visualization"
 sources: [ "https://github.com/magda-io/magda-minion-visualization" ]
+annotations:
+  magdaModuleType: "minion"
+dependencies:
+  - name: magda-common
+    version: "2.0.1"
+    repository: "oci://ghcr.io/magda-io/charts"

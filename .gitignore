@@ -50,3 +50,4 @@ magda-tenant-api/lib/
 
 #typescript
 tsconfig.tsbuildinfo
+deploy/*/charts

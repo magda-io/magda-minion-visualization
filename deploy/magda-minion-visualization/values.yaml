@@ -12,8 +12,7 @@ image:
   # imagePullSecret: 
 
 defaultImage:
-  repository: docker.io/data61
-  tag: 0.0.57-0
+  repository: ghcr.io/magda-io
   pullPolicy: IfNotPresent
   imagePullSecret: false
 
