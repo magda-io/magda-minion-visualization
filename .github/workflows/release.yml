@@ -45,7 +45,7 @@ jobs:
       - name: Re-tag & Push Docker Images
         run: |
           REPO_OWNER=`echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]'`
-          PACKAGE_JSON_VERSION=$(jq -r ".version" ./${REPO_NAME}/package.json)
+          PACKAGE_JSON_VERSION=$(jq -r ".version" ./package.json)
           chmod +r $HOME/.docker/config.json
           # Re-push to ghcr.io
           docker container run --rm --net host \
