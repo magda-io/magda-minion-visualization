@@ -167,10 +167,6 @@ export async function getVisualizationInfoFromStream(
         csvStream
             .pipe(new DeferredStream())
             .pipe(parser)
-            .pipe(new DeferredStream({
-                readableObjectMode: true,
-                writableObjectMode: true
-            }))
             .pipe(new NullStream({ objectMode: true }))
             .on("close", () => {
                 if (!ifResolved) {
