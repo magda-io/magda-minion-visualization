@@ -10,7 +10,7 @@
     "start": "node dist/index.js",
     "dev": "run-typescript-in-nodemon src/index.ts",
     "docker-build-local": "create-docker-context-for-node-component --build --push --tag auto --local",
-    "docker-build-prod": "create-docker-context-for-node-component --build --push --tag auto",
+    "docker-build-prod": "create-docker-context-for-node-component --build --push --tag auto --version test50 --platform=linux/amd64,linux/arm64",
     "retag-and-push": "retag-and-push",
     "test": "mocha",
     "helm-lint": "helm lint deploy/magda-minion-visualization -f deploy/test-deploy.yaml",
@@ -23,6 +23,7 @@
   "author": "",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@jorgeferrero/stream-to-buffer": "^2.0.6",
     "@magda/ci-utils": "^1.0.5",
     "@magda/docker-utils": "^2.1.0-alpha.1",
     "@types/chai": "^4.3.3",

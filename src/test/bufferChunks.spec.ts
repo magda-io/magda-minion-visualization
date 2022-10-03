@@ -2,8 +2,10 @@ import {} from "mocha";
 import bufferChunks from "../bufferChunks";
 import path from "path";
 import nock from "nock";
+import fs from "fs";
 import { fetch } from "../onRecordFound";
 import { expect } from "chai";
+import { streamToBuffer } from "@jorgeferrero/stream-to-buffer";
 
 describe("Test bufferChunks", () => {
     beforeEach(() => {
@@ -27,10 +29,25 @@ describe("Test bufferChunks", () => {
     });
 
     it("Should process HTML response correctly", async () => {
-        //return;
         const res = await fetch("http://example.com/html/404");
         expect(res.status).to.equal(404);
-        const buffer = Buffer.from(await res.text());
+        const buffer = await streamToBuffer(res.body);
+        const chunks = bufferChunks(buffer, 100);
+        let totalChunkSize = 0;
+        let chunkedStr = "";
+        for (const chunk of chunks) {
+            totalChunkSize += chunk.length;
+            chunkedStr += chunk.toString();
+        }
+        expect(totalChunkSize).to.equal(buffer.length);
+        expect(chunkedStr).to.equal(buffer.toString());
+    });
+
+    it("Should process CSV file stream correctly", async () => {
+        const csvStream = fs.createReadStream(
+            path.resolve(__dirname, "./test.csv")
+        );
+        const buffer = await streamToBuffer(csvStream);
         const chunks = bufferChunks(buffer, 100);
         let totalChunkSize = 0;
         let chunkedStr = "";
