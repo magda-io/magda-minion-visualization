@@ -1,7 +1,7 @@
 {
   "name": "@magda/minion-visualization",
   "description": "MAGDA visualization Minion",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "scripts": {
     "prebuild": "rimraf dist tsconfig.tsbuildinfo",
     "build": "yarn run compile",
